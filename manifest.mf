@@ -1,0 +1,5 @@
+Manifest-Version: 1.0
+OpenIDE-Module: de.inetsource
+OpenIDE-Module-Localizing-Bundle: de/inetsource/Bundle.properties
+OpenIDE-Module-Specification-Version: 1.0
+
