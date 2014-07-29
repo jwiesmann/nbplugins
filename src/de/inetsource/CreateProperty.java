@@ -20,6 +20,7 @@ import org.openide.cookies.EditorCookie;
 import org.openide.cookies.LineCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.filesystems.Repository;
 import org.openide.loaders.DataObject;
 import org.openide.loaders.DataObjectNotFoundException;
 import org.openide.text.Line;
@@ -56,7 +57,8 @@ public final class CreateProperty implements ActionListener {
                     int selEnd = panes[0].getSelectionEnd();
                     if (selStart > -1 && selEnd > selStart) {
                         String selectedText = panes[0].getDocument().getText(selStart, selEnd - selStart);
-
+                        FileObject root = Repository.getDefault().getDefaultFileSystem().getRoot();
+                        System.out.println(root);
                         File f = new File(
                                 "D:\\dev\\CRM_DEV\\crm-esp\\comp\\trunk\\vms\\vms-ui\\src\\main\\resources\\com\\qvc\\vms\\vms-ui-messages.properties");
                         FileObject fileObject = FileUtil.toFileObject(f);
