@@ -11,6 +11,7 @@ import java.io.File;
 import javax.swing.JEditorPane;
 import javax.swing.JOptionPane;
 import javax.swing.text.StyledDocument;
+import org.netbeans.modules.editor.NbEditorDocument;
 import org.openide.awt.ActionID;
 import org.openide.awt.ActionReference;
 import org.openide.awt.ActionReferences;
@@ -30,11 +31,7 @@ import org.openide.util.NbBundle.Messages;
 @ActionRegistration(
         iconBase = "de/inetsource/1406316195_Chat.png",
         displayName = "#CTL_CreateProperty")
-@ActionReferences({
-        @ActionReference(path = "Menu/Refactoring", position = 0),
-        @ActionReference(path = "Loaders/text/xhtml/Actions", position = 0),
-        @ActionReference(path = "Editors/text/xhtml/Popup", position = 400)
-})
+@ActionReferences({ @ActionReference(path = "Editors/text/xhtml/Popup", position = 400) })
 @Messages("CTL_CreateProperty=Create Property")
 public final class CreateProperty implements ActionListener {
 
@@ -52,10 +49,14 @@ public final class CreateProperty implements ActionListener {
             if (context != null) {
                 JEditorPane[] panes = context.getOpenedPanes();
                 if (panes.length > 0) {
+                    NbEditorDocument document = (NbEditorDocument) context.getDocument();
+                    System.out.println(document.getDocumentProperties());
+
                     int selStart = panes[0].getSelectionStart();
                     int selEnd = panes[0].getSelectionEnd();
                     if (selStart > -1 && selEnd > selStart) {
                         String selectedText = panes[0].getDocument().getText(selStart, selEnd - selStart);
+
                         File f = new File(
                                 "D:\\dev\\CRM_DEV\\crm-esp\\comp\\trunk\\vms\\vms-ui\\src\\main\\resources\\com\\qvc\\vms\\vms-ui-messages.properties");
                         FileObject fileObject = FileUtil.toFileObject(f);
@@ -67,7 +68,7 @@ public final class CreateProperty implements ActionListener {
                             ex.printStackTrace();
                         }
                         if (dobj != null) {
-                            LineCookie lc = (LineCookie) dobj.getCookie(LineCookie.class);
+                            LineCookie lc = dobj.getLookup().lookup(LineCookie.class);
                             if (lc == null) {/* cannot do it */
                                 return;
                             }
