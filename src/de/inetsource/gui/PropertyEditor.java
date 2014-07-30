@@ -95,6 +95,11 @@ public class PropertyEditor extends javax.swing.JFrame {
         });
 
         org.openide.awt.Mnemonics.setLocalizedText(execute, org.openide.util.NbBundle.getMessage(PropertyEditor.class, "PropertyEditor.execute.text")); // NOI18N
+        execute.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                executeActionPerformed(evt);
+            }
+        });
 
         javax.swing.GroupLayout bottomPanelLayout = new javax.swing.GroupLayout(bottomPanel);
         bottomPanel.setLayout(bottomPanelLayout);
@@ -148,6 +153,10 @@ public class PropertyEditor extends javax.swing.JFrame {
     private void varReplaceEndActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_varReplaceEndActionPerformed
         // TODO add your handling code here:
     }//GEN-LAST:event_varReplaceEndActionPerformed
+
+    private void executeActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_executeActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_executeActionPerformed
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JPanel bottomPanel;

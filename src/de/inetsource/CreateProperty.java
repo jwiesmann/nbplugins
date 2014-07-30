@@ -72,7 +72,7 @@ public final class CreateProperty implements ActionListener {
         }
     }
 
-    public FileObject getFileFromEditor() {
+    private FileObject getFileFromEditor() {
         if (context.getDocument() != null && context.getDocument().getClass().equals(NbEditorDocument.class)) {
             NbEditorDocument doc = (NbEditorDocument) context.getDocument();
             Object sdp = doc.getProperty(NbEditorDocument.StreamDescriptionProperty);
@@ -135,8 +135,11 @@ public final class CreateProperty implements ActionListener {
         DefaultTableModel dtm = new DefaultTableModel(tableRows, defaultValues.size());
         int i = 0;
         for (String value : defaultValues) {
-            dtm.setValueAt(createKeyFromValue(value, fileObjects.get(0)), i, 0);
-            dtm.setValueAt(value, i, 1);
+            String key = createKeyFromValue(value, fileObjects);
+            dtm.setValueAt(key, i, 0);
+            for (int j = 1; j <= fileObjects.size(); j++) {
+                dtm.setValueAt(getValueFromProperty(fileObjects.get(j - 1), value, key), i, j);
+            }
             i++;
         }
         propertyTable.setModel(dtm);
@@ -165,12 +168,12 @@ public final class CreateProperty implements ActionListener {
         return result;
     }
 
-    private String createKeyFromValue(String value, FileObject messageProperty) {
+    private String createKeyFromValue(String value, List<FileObject> messageProperties) {
         String suggestedKey = "";
         if (value != null && value.length() >= 1) {
             Properties props = new Properties();
             try {
-                props.load(messageProperty.getInputStream());
+                props.load(messageProperties.get(0).getInputStream());
                 Iterator<Object> iter = props.keySet().iterator();
                 while (iter.hasNext()) {
                     String key = (String) iter.next();
@@ -182,6 +185,14 @@ public final class CreateProperty implements ActionListener {
                 Exceptions.printStackTrace(ex);
             } catch (IOException ex) {
                 Exceptions.printStackTrace(ex);
+            } finally {
+                try {
+                    messageProperties.get(0).getInputStream().close();
+                } catch (FileNotFoundException ex) {
+                    Exceptions.printStackTrace(ex);
+                } catch (IOException ex) {
+                    Exceptions.printStackTrace(ex);
+                }
             }
             String[] keyVal = value.split(" ");
             for (String val : keyVal) {
@@ -189,6 +200,27 @@ public final class CreateProperty implements ActionListener {
             }
         }
         return suggestedKey.substring(0, suggestedKey.length() - 1);
+    }
+
+    private String getValueFromProperty(FileObject fileObject, String defaultValue, String key) {
+        try {
+            Properties p = new Properties();
+            p.load(fileObject.getInputStream());
+            return p.getProperty(key, defaultValue);
+        } catch (FileNotFoundException ex) {
+            Exceptions.printStackTrace(ex);
+        } catch (IOException ex) {
+            Exceptions.printStackTrace(ex);
+        } finally {
+            try {
+                fileObject.getInputStream().close();
+            } catch (FileNotFoundException ex) {
+                Exceptions.printStackTrace(ex);
+            } catch (IOException ex) {
+                Exceptions.printStackTrace(ex);
+            }
+        }
+        return defaultValue;
     }
 
 }
