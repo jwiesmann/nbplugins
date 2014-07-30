@@ -18,6 +18,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JTable;
 import javax.swing.table.DefaultTableModel;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.StringUtils;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
 import org.netbeans.modules.editor.NbEditorDocument;
@@ -150,17 +151,17 @@ public final class CreateProperty implements ActionListener {
     private List<String> findOccurrences(String editorText) {
         List<String> result = new ArrayList<String>();
         String[] patterns = new String[] {
-                "(value=\")([a-zA-Z ]*)(\")",
-                "(headerText=\")([a-zA-Z ]*)(\")",
-                "(itemLabel=\")([a-zA-Z ]*)(\")",
-                "(header=\")([a-zA-Z ]*)(\")",
-                "(>)([a-zA-Z ]*)(<)" };
+                "(value=\")([a-zA-Z0-9 ]*)(\")",
+                "(headerText=\")([a-zA-Z0-9 ]*)(\")",
+                "(itemLabel=\")([a-zA-Z0-9 ]*)(\")",
+                "(header=\")([a-zA-Z0-9 ]*)(\")",
+                "(>)([a-zA-Z0-9 ]*)(<)" };
         for (String patternString : patterns) {
             Pattern pattern = Pattern.compile(patternString);
             Matcher matcher = pattern.matcher(editorText);
             while (matcher.find()) {
                 String foundValue = matcher.group(2);
-                if (!result.contains(foundValue)) {
+                if (!result.contains(foundValue) && StringUtils.trimToEmpty(foundValue).length()>0) {
                     result.add(foundValue);
                 }
             }
@@ -198,8 +199,9 @@ public final class CreateProperty implements ActionListener {
             for (String val : keyVal) {
                 suggestedKey += val.toLowerCase() + ".";
             }
+            return suggestedKey.substring(0, suggestedKey.length() - 1);
         }
-        return suggestedKey.substring(0, suggestedKey.length() - 1);
+        return suggestedKey;
     }
 
     private String getValueFromProperty(FileObject fileObject, String defaultValue, String key) {
