@@ -1,8 +1,9 @@
 package com.geekdivers;
 
+import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileFilter;
 import java.io.IOException;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
@@ -16,11 +17,6 @@ import javax.swing.text.Element;
 import org.apache.commons.io.FileUtils;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.StyledDocument;
-import org.apache.commons.io.filefilter.AndFileFilter;
-import org.apache.commons.io.filefilter.IOFileFilter;
-import org.apache.commons.io.filefilter.NotFileFilter;
-import org.apache.commons.io.filefilter.OrFileFilter;
-import org.apache.commons.io.filefilter.PrefixFileFilter;
 import org.apache.commons.io.filefilter.SuffixFileFilter;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
@@ -118,7 +114,7 @@ public class TypescriptHTMLProvider implements CompletionProvider {
 
     private void findDefinitions(String ngControllerName, Document doc) {
         Project thisProject = lookupProject();
-        findTypescriptFiles(thisProject,ngControllerName);
+        findTypescriptFiles(thisProject, ngControllerName);
     }
 
     private Project lookupProject() {
@@ -157,8 +153,9 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                         String content = FileUtils.readFileToString(ff);
                         if (content.contains(ngControllerName)) {
                             System.out.println(content);
+                            testReader(content);
                         }
-                        
+
                     } catch (IOException ex) {
                         Exceptions.printStackTrace(ex);
                     }
@@ -167,6 +164,28 @@ public class TypescriptHTMLProvider implements CompletionProvider {
 
         }
         return files;
+    }
+
+    private static void testReader(String text) {
+        String searchNamePatternString = "(interface )([\\S]+)";
+        Pattern searchNamePatter = Pattern.compile(searchNamePatternString);
+                    
+        long start = System.currentTimeMillis();
+        List<TSInterface> result = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new StringReader(text))) {
+            String line = reader.readLine();
+            while (line != null) {
+                Matcher m = searchNamePatter.matcher(line);
+                if (m.find()) {
+                    TSInterface tsi = new TSInterface(line.contains("extends"), m.group(2));
+                    result.add(tsi);
+                }
+                line = reader.readLine();
+            }
+        } catch (IOException exc) {
+            // quit
+        }
+        System.out.printf(result.size() + " ==> in Reader: %d%n", System.currentTimeMillis() - start);
     }
 
     static int getRowFirstNonWhite(StyledDocument doc, int offset)
