@@ -2,6 +2,7 @@ package com.geekdivers;
 
 import java.io.File;
 import java.io.FileFilter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
@@ -70,6 +71,7 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                         String ngControllerName = m.group(2);
                         System.out.println("found controller:" + ngControllerName + " in " + (new Date().getTime() - startDate.getTime()) + " ms");
                         findDefinitions(ngControllerName, document);
+                        System.out.println("found definitions: in " + (new Date().getTime() - startDate.getTime()) + " ms");
                     } else {
                         completionResultSet.finish();
                         return;
@@ -116,7 +118,7 @@ public class TypescriptHTMLProvider implements CompletionProvider {
 
     private void findDefinitions(String ngControllerName, Document doc) {
         Project thisProject = lookupProject();
-        findTypescriptFiles(thisProject);
+        findTypescriptFiles(thisProject,ngControllerName);
     }
 
     private Project lookupProject() {
@@ -137,7 +139,7 @@ public class TypescriptHTMLProvider implements CompletionProvider {
     }
 
     @SuppressWarnings("unchecked")
-    private List<FileObject> findTypescriptFiles(Project p) {
+    private List<FileObject> findTypescriptFiles(Project p, String ngControllerName) {
         List<FileObject> files = new ArrayList<FileObject>();
         // not sure why, but we need to look up one dir higher...
         File projectDir = null;
@@ -147,26 +149,20 @@ public class TypescriptHTMLProvider implements CompletionProvider {
             projectDir = FileUtil.toFile(p.getProjectDirectory());
         }
         if (projectDir != null && projectDir.isDirectory()) {
-            List<FileFilter> filter = new ArrayList();
-            filter.add(new PrefixFileFilter("node_modules"));
-            filter.add(new PrefixFileFilter("dist"));
-            filter.add(new PrefixFileFilter("bower_components"));
-            String[] foundFiles = projectDir.list(
-                    new AndFileFilter(
-                            new SuffixFileFilter("ts"),
-                            new NotFileFilter(
-                                    new OrFileFilter(filter)
-                            )
-                    )
-            );
-            for (String f : foundFiles) {
-                System.out.println(f);
-            }
-            IOFileFilter fileFilter = new AndFileFilter(new SuffixFileFilter(".ts"),
-                    new NotFileFilter(new OrFileFilter(filter)));
-            Collection<File> foundFiles2 = FileUtils.listFiles(projectDir, new SuffixFileFilter(".ts"), fileFilter);
-            for (File ff: foundFiles2) {
-                System.out.println(ff.getAbsoluteFile());
+            Collection<File> foundFiles2 = FileUtils.listFiles(projectDir, new SuffixFileFilter(".ts"), TrueFileFilter.INSTANCE);
+            for (File ff : foundFiles2) {
+                if (!ff.getAbsolutePath().contains("node_modules")) {
+
+                    try {
+                        String content = FileUtils.readFileToString(ff);
+                        if (content.contains(ngControllerName)) {
+                            System.out.println(content);
+                        }
+                        
+                    } catch (IOException ex) {
+                        Exceptions.printStackTrace(ex);
+                    }
+                }
             }
 
         }
