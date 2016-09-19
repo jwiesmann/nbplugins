@@ -1,5 +1,6 @@
 package com.geekdivers;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -12,10 +13,13 @@ public class TSInterface {
     private Map<String, String> objectProperties;
     private Map<String, String> objectFunctions;
     private String name;
+    private String extendsInterfaceName;
 
     public TSInterface(boolean extendsInterface, String name) {
         this.extendsInterface = extendsInterface;
         this.name = name;
+        this.objectFunctions = new HashMap<>();
+        this.objectProperties = new HashMap<>();
     }
 
     public boolean isExtendsInterface() {
@@ -49,6 +53,13 @@ public class TSInterface {
     public void setObjectFunctions(Map<String, String> objectFunctions) {
         this.objectFunctions = objectFunctions;
     }
-    
+
+    public String getExtendsInterfaceName() {
+        return extendsInterfaceName;
+    }
+
+    public void setExtendsInterfaceName(String extendsInterfaceName) {
+        this.extendsInterfaceName = extendsInterfaceName;
+    }
 
 }

@@ -7,8 +7,10 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.swing.text.BadLocationException;
@@ -19,6 +21,7 @@ import javax.swing.text.JTextComponent;
 import javax.swing.text.StyledDocument;
 import org.apache.commons.io.filefilter.SuffixFileFilter;
 import org.apache.commons.io.filefilter.TrueFileFilter;
+import org.apache.commons.lang.StringUtils;
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
@@ -65,9 +68,11 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                     Matcher m = ngControllerPattern.matcher(content);
                     if (m.find()) {
                         String ngControllerName = m.group(2);
-                        System.out.println("found controller:" + ngControllerName + " in " + (new Date().getTime() - startDate.getTime()) + " ms");
+                        System.out.println("found controller:" + ngControllerName + " in "
+                                + (new Date().getTime() - startDate.getTime()) + " ms");
                         findDefinitions(ngControllerName, document);
-                        System.out.println("found definitions: in " + (new Date().getTime() - startDate.getTime()) + " ms");
+                        System.out.println(
+                                "found definitions: in " + (new Date().getTime() - startDate.getTime()) + " ms");
                     } else {
                         completionResultSet.finish();
                         return;
@@ -86,17 +91,17 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                     Exceptions.printStackTrace(ex);
                 }
 
-                //Iterate through the available locales
-                //and assign each country display name
-                //to a CompletionResultSet:
+                // Iterate through the available locales
+                // and assign each country display name
+                // to a CompletionResultSet:
                 Locale[] locales = Locale.getAvailableLocales();
                 for (int i = 0; i < locales.length; i++) {
                     final Locale locale = locales[i];
                     final String country = locale.getDisplayCountry();
-                    //Here we test whether the country starts with the filter defined above:
+                    // Here we test whether the country starts with the filter defined above:
                     if (!country.equals("") && country.startsWith(filter)) {
-                        //Here we include the start offset, so that we'll be able to figure out
-                        //the number of characters that we'll need to remove:
+                        // Here we include the start offset, so that we'll be able to figure out
+                        // the number of characters that we'll need to remove:
                         completionResultSet.addItem(new TypescriptHTMLItem(country, startOffset, caretOffset));
                     }
                 }
@@ -145,40 +150,77 @@ public class TypescriptHTMLProvider implements CompletionProvider {
             projectDir = FileUtil.toFile(p.getProjectDirectory());
         }
         if (projectDir != null && projectDir.isDirectory()) {
-            Collection<File> foundFiles2 = FileUtils.listFiles(projectDir, new SuffixFileFilter(".ts"), TrueFileFilter.INSTANCE);
+            String currentController = null;
+            Map<String, TSInterface> allInterfaces = new HashMap<>();
+            Collection<File> foundFiles2 = FileUtils.listFiles(projectDir, new SuffixFileFilter(".ts"),
+                    TrueFileFilter.INSTANCE);
             for (File ff : foundFiles2) {
                 if (!ff.getAbsolutePath().contains("node_modules")) {
-
+                    System.out.println("ff:" + ff.getAbsolutePath());
                     try {
                         String content = FileUtils.readFileToString(ff);
                         if (content.contains(ngControllerName)) {
-                            System.out.println(content);
-                            testReader(content);
+                            currentController = content;
                         }
+                        allInterfaces.putAll(createAllInterfaces(content));
 
                     } catch (IOException ex) {
                         Exceptions.printStackTrace(ex);
                     }
                 }
+                if (currentController != null) {
+                    System.out.println("interfaces created:" + allInterfaces.size());
+                }
             }
-
         }
         return files;
     }
 
-    private static void testReader(String text) {
+    private static Map<String, TSInterface> createAllInterfaces(String text) {
         String searchNamePatternString = "(interface )([\\S]+)";
+        String searchExtendsPatternString = "(extends )([\\S]+)( \\{)";
+        String simplePropOrFunction = "(\\S+): ([a-zA-Z}\\[\\]]+);";
+        Pattern simplePropOrFunctionPattern = Pattern.compile(simplePropOrFunction);
         Pattern searchNamePatter = Pattern.compile(searchNamePatternString);
-                    
+        Pattern searchExtendsName = Pattern.compile(searchExtendsPatternString);
+
         long start = System.currentTimeMillis();
-        List<TSInterface> result = new ArrayList<>();
+        Map<String, TSInterface> result = new HashMap<>();
         try (BufferedReader reader = new BufferedReader(new StringReader(text))) {
             String line = reader.readLine();
+            int bracketsCount = 0;
+            boolean insideInterface = false;
+            TSInterface tsi = null;
             while (line != null) {
+
+                if (insideInterface) {
+                    Matcher simpleProp = simplePropOrFunctionPattern.matcher(line);
+                    if (simpleProp.find() && tsi != null) {
+                        if (simpleProp.group(1).contains("(")) {
+                            tsi.getObjectFunctions().put(simpleProp.group(1), simpleProp.group(2));
+                        } else {
+                            tsi.getObjectProperties().put(simpleProp.group(1), simpleProp.group(2));
+                        }
+                    }
+                    insideInterface = isInterfaceDone(line, bracketsCount, insideInterface);
+                    if (!insideInterface) {
+                        result.put(tsi.getName(), tsi);
+                    }
+
+                }
+
                 Matcher m = searchNamePatter.matcher(line);
-                if (m.find()) {
-                    TSInterface tsi = new TSInterface(line.contains("extends"), m.group(2));
-                    result.add(tsi);
+                if (!insideInterface && m.find()) {
+                    boolean extendsInterface = line.contains("extends");
+                    tsi = new TSInterface(extendsInterface, m.group(2));
+                    if (extendsInterface) {
+                        Matcher extendsInterfaceNameMatcher = searchExtendsName.matcher(line);
+                        if (extendsInterfaceNameMatcher.find()) {
+                            String extendsInterfaceName = extendsInterfaceNameMatcher.group(2);
+                            tsi.setExtendsInterfaceName(extendsInterfaceName);
+                        }
+                    }
+                    insideInterface = true;
                 }
                 line = reader.readLine();
             }
@@ -186,10 +228,22 @@ public class TypescriptHTMLProvider implements CompletionProvider {
             // quit
         }
         System.out.printf(result.size() + " ==> in Reader: %d%n", System.currentTimeMillis() - start);
+        return result;
     }
 
-    static int getRowFirstNonWhite(StyledDocument doc, int offset)
-            throws BadLocationException {
+    public static boolean isInterfaceDone(String line, int bracketsCount, boolean insideInterface) {
+        if (line.contains("{")) {
+            bracketsCount += StringUtils.countMatches(line, "{");
+        }
+        if (line.contains("}") && bracketsCount == 0) {
+            insideInterface = false;
+        } else if (line.contains("}")) {
+            bracketsCount -= StringUtils.countMatches(line, "}");
+        }
+        return insideInterface;
+    }
+
+    static int getRowFirstNonWhite(StyledDocument doc, int offset) throws BadLocationException {
         Element lineElement = doc.getParagraphElement(offset);
         int start = lineElement.getStartOffset();
         while (start + 1 < lineElement.getEndOffset()) {
@@ -199,9 +253,8 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                 }
             } catch (BadLocationException ex) {
                 throw (BadLocationException) new BadLocationException(
-                        "calling getText(" + start + ", " + (start + 1)
-                        + ") on doc of length: " + doc.getLength(), start
-                ).initCause(ex);
+                        "calling getText(" + start + ", " + (start + 1) + ") on doc of length: " + doc.getLength(),
+                        start).initCause(ex);
             }
             start++;
         }
