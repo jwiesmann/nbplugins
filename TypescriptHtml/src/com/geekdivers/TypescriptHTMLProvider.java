@@ -4,12 +4,9 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -45,8 +42,13 @@ import org.openide.windows.TopComponent;
 @MimeRegistration(mimeType = "text/html", service = CompletionProvider.class)
 public class TypescriptHTMLProvider implements CompletionProvider {
 
+    Map<String, TSInterface> allInterfaces = new HashMap<>();
+    String currentController = null;
+    WatchDir tsWatchService = null;
+
     @Override
-    public CompletionTask createTask(int queryType, JTextComponent jtc) {
+    public CompletionTask createTask(int queryType, JTextComponent jtc
+    ) {
         if (queryType != CompletionProvider.COMPLETION_QUERY_TYPE) {
             return null;
         }
@@ -58,7 +60,7 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                 Date startDate = new Date();
                 String filter = null;
                 int startOffset = caretOffset - 1;
-
+                Map<String, TSInterface> interfacesFound = new HashMap<>();
                 try {
                     final StyledDocument bDoc = (StyledDocument) document;
 
@@ -70,9 +72,10 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                         String ngControllerName = m.group(2);
                         System.out.println("found controller:" + ngControllerName + " in "
                                 + (new Date().getTime() - startDate.getTime()) + " ms");
-                        findDefinitions(ngControllerName, document);
+                        interfacesFound.putAll(findDefinitions(ngControllerName, document));
                         System.out.println(
                                 "found definitions: in " + (new Date().getTime() - startDate.getTime()) + " ms");
+                        System.out.println("found:" + interfacesFound.size());
                     } else {
                         completionResultSet.finish();
                         return;
@@ -94,32 +97,50 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                 // Iterate through the available locales
                 // and assign each country display name
                 // to a CompletionResultSet:
-                Locale[] locales = Locale.getAvailableLocales();
-                for (int i = 0; i < locales.length; i++) {
-                    final Locale locale = locales[i];
-                    final String country = locale.getDisplayCountry();
-                    // Here we test whether the country starts with the filter defined above:
-                    if (!country.equals("") && country.startsWith(filter)) {
-                        // Here we include the start offset, so that we'll be able to figure out
-                        // the number of characters that we'll need to remove:
-                        completionResultSet.addItem(new TypescriptHTMLItem(country, startOffset, caretOffset));
+                filter = filter.substring(2); // cut {{
+                if (filter != null && filter.length() > 2) {
+                    if (filter.indexOf(".") > 0) {
+                        int dotFound = filter.lastIndexOf(".");
+                        startOffset += dotFound + 1 + 2;
+                        String filters[] = filter.split("\\.");
+                        for (TSInterface interfaces : interfacesFound.values()) {
+                            // now that gets a bit ugly...
+                            for (String propVal : interfaces.getObjectProperties().keySet()) {
+                                if (filters.length <= 2) {
+                                    if (propVal.equals(filters[0])) {
+                                        TSInterface tsi = interfacesFound.get(interfaces.getObjectProperties().get(propVal));
+                                        for (String value : tsi.getObjectProperties().keySet()) {
+                                            if (filters.length < 2) {
+                                                TypescriptHTMLItem item = new TypescriptHTMLItem(value, startOffset, caretOffset);
+                                                completionResultSet.addItem(item);
+                                            } else if (value.toLowerCase().startsWith(filters[1])) {
+                                                TypescriptHTMLItem item = new TypescriptHTMLItem(value, startOffset, caretOffset);
+                                                completionResultSet.addItem(item);
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    //todo
+                                }
+                            }
+                        }
                     }
+
                 }
                 completionResultSet.finish();
-
             }
-
         }, jtc);
     }
 
     @Override
-    public int getAutoQueryTypes(JTextComponent jtc, String string) {
+    public int getAutoQueryTypes(JTextComponent jtc, String string
+    ) {
         return 0;
     }
 
-    private void findDefinitions(String ngControllerName, Document doc) {
+    private Map<String, TSInterface> findDefinitions(String ngControllerName, Document doc) {
         Project thisProject = lookupProject();
-        findTypescriptFiles(thisProject, ngControllerName);
+        return findTypescriptFiles(thisProject, ngControllerName);
     }
 
     private Project lookupProject() {
@@ -140,40 +161,73 @@ public class TypescriptHTMLProvider implements CompletionProvider {
     }
 
     @SuppressWarnings("unchecked")
-    private List<FileObject> findTypescriptFiles(Project p, String ngControllerName) {
-        List<FileObject> files = new ArrayList<FileObject>();
+    private Map<String, TSInterface> findTypescriptFiles(Project p, String ngControllerName) {
+        Map<String, TSInterface> foundSuggestions = new HashMap<>();
         // not sure why, but we need to look up one dir higher...
-        File projectDir = null;
+        File projectDir;
         if (p.getProjectDirectory().getParent() != null) {
             projectDir = FileUtil.toFile(p.getProjectDirectory().getParent());
         } else {
             projectDir = FileUtil.toFile(p.getProjectDirectory());
         }
         if (projectDir != null && projectDir.isDirectory()) {
-            String currentController = null;
-            Map<String, TSInterface> allInterfaces = new HashMap<>();
-            Collection<File> foundFiles2 = FileUtils.listFiles(projectDir, new SuffixFileFilter(".ts"),
-                    TrueFileFilter.INSTANCE);
-            for (File ff : foundFiles2) {
-                if (!ff.getAbsolutePath().contains("node_modules")) {
-                    System.out.println("ff:" + ff.getAbsolutePath());
-                    try {
-                        String content = FileUtils.readFileToString(ff);
-                        if (content.contains(ngControllerName)) {
-                            currentController = content;
-                        }
-                        allInterfaces.putAll(createAllInterfaces(content));
 
-                    } catch (IOException ex) {
-                        Exceptions.printStackTrace(ex);
-                    }
-                }
-                if (currentController != null) {
-                    System.out.println("interfaces created:" + allInterfaces.size());
+            if (tsWatchService == null) {
+                try {
+                    tsWatchService = new WatchDir(projectDir.toPath(), true);
+                    tsWatchService.processEvents();
+                } catch (IOException ex) {
+                    ex.printStackTrace();
                 }
             }
+            if (allInterfaces.isEmpty()) {
+                Collection<File> foundFiles2 = FileUtils.listFiles(projectDir, new SuffixFileFilter(".ts"),
+                        TrueFileFilter.INSTANCE);
+
+                for (File ff : foundFiles2) {
+                    if (!ff.getAbsolutePath().contains("node_modules")) {
+
+                        try {
+                            String content = FileUtils.readFileToString(ff);
+                            if (content.contains(ngControllerName)) {
+                                currentController = content;
+                            }
+                            System.out.println("creating interface for:" + ff.getAbsolutePath());
+                            allInterfaces.putAll(createAllInterfaces(content));
+
+                        } catch (IOException ex) {
+                            Exceptions.printStackTrace(ex);
+                        }
+                    }
+                }
+                // start watching the files...
+
+            }
+
+            if (currentController != null) {
+                Pattern interfacePattern = Pattern.compile(": [a-zA-Z\\.]+");
+                Matcher interfacePatternMatcher = interfacePattern.matcher(currentController);
+                while (interfacePatternMatcher.find()) {
+                    String foundInterfaceName = currentController.substring(interfacePatternMatcher.start() + 2, interfacePatternMatcher.end());
+                    TSInterface found = allInterfaces.get(foundInterfaceName);
+                    if (found != null) {
+                        System.out.println("FOUND: " + found.getName() + " >>>" + found.getObjectFunctions() + " >>> " + found.getObjectProperties());
+                        foundSuggestions.put(foundInterfaceName, found);
+                        if (found.isExtendsInterface() && allInterfaces.containsKey(found.getExtendsInterfaceName())) {
+                            foundSuggestions.put(found.getExtendsInterfaceName(), allInterfaces.get(found.getExtendsInterfaceName()));
+                            TSInterface extenededInterface = allInterfaces.get(found.getExtendsInterfaceName());
+                            System.out.println("FOUND Extension: " + found.getExtendsInterfaceName());
+                            found.getObjectFunctions().putAll(extenededInterface.getObjectFunctions());
+                            found.getObjectProperties().putAll(extenededInterface.getObjectProperties());
+                        }
+                    }
+                }
+
+                System.out.println("interfaces created:" + allInterfaces.size());
+            }
+
         }
-        return files;
+        return foundSuggestions;
     }
 
     private static Map<String, TSInterface> createAllInterfaces(String text) {
@@ -217,6 +271,9 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                         Matcher extendsInterfaceNameMatcher = searchExtendsName.matcher(line);
                         if (extendsInterfaceNameMatcher.find()) {
                             String extendsInterfaceName = extendsInterfaceNameMatcher.group(2);
+                            if (extendsInterfaceName.contains(".")) {
+                                extendsInterfaceName = extendsInterfaceName.substring(extendsInterfaceName.lastIndexOf(".") + 1);
+                            }
                             tsi.setExtendsInterfaceName(extendsInterfaceName);
                         }
                     }
@@ -248,7 +305,7 @@ public class TypescriptHTMLProvider implements CompletionProvider {
         int start = lineElement.getStartOffset();
         while (start + 1 < lineElement.getEndOffset()) {
             try {
-                if (doc.getText(start, 1).charAt(0) != ' ') {
+                if (doc.getText(start, 1).charAt(0) != '{') {
                     break;
                 }
             } catch (BadLocationException ex) {
