@@ -1,4 +1,4 @@
-package com.geekdivers;
+package de.inetsource;
 
 /*
  * Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.

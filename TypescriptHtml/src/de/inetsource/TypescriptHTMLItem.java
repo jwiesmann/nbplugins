@@ -1,9 +1,4 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-package com.geekdivers;
+package de.inetsource;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -27,7 +22,7 @@ import org.openide.util.ImageUtilities;
 public class TypescriptHTMLItem implements CompletionItem {
 
     private String text;
-    private static ImageIcon fieldIcon = new ImageIcon(ImageUtilities.loadImage("com/geekdivers/1474226385_Image.png"));
+    private static ImageIcon fieldIcon = new ImageIcon(ImageUtilities.loadImage("de/inetsource/1474226385_Image.png"));
     private static Color fieldColor = Color.decode("0x0000B2");
     private int caretOffset;
     private final int dotOffset;

@@ -1,4 +1,4 @@
-package com.geekdivers;
+package de.inetsource;
 
 import java.io.BufferedReader;
 import java.io.File;

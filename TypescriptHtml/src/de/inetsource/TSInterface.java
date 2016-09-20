@@ -1,11 +1,11 @@
-package com.geekdivers;
+package de.inetsource;
 
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- *
- * @author geekdivers
+ * Basic class to identify interfaces
+ * @author jwiesmann
  */
 public class TSInterface {
 
