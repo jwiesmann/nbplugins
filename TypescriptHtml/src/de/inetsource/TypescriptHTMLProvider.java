@@ -98,10 +98,11 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                 // and assign each country display name
                 // to a CompletionResultSet:
                 filter = filter.substring(2); // cut {{
+                startOffset += 2; // add the two {{ again
                 if (filter != null && filter.length() > 2) {
                     if (filter.indexOf(".") > 0) {
                         int dotFound = filter.lastIndexOf(".");
-                        startOffset += dotFound + 1 + 2;
+                        startOffset += dotFound + 1;
                         String filters[] = filter.split("\\.");
                         for (TSInterface interfaces : interfacesFound.values()) {
                             // now that gets a bit ugly...
@@ -109,18 +110,40 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                                 if (filters.length <= 2) {
                                     if (propVal.equals(filters[0])) {
                                         TSInterface tsi = interfacesFound.get(interfaces.getObjectProperties().get(propVal));
-                                        for (String value : tsi.getObjectProperties().keySet()) {
-                                            if (filters.length < 2) {
-                                                TypescriptHTMLItem item = new TypescriptHTMLItem(value, startOffset, caretOffset);
-                                                completionResultSet.addItem(item);
-                                            } else if (value.toLowerCase().startsWith(filters[1])) {
-                                                TypescriptHTMLItem item = new TypescriptHTMLItem(value, startOffset, caretOffset);
-                                                completionResultSet.addItem(item);
+                                        if (tsi == null) {
+                                            String searchArrayString = "([\\S]+)(\\[[0-9]{0,}\\])";
+                                            Pattern sasPattern = Pattern.compile(searchArrayString);
+                                            Matcher m = sasPattern.matcher(interfaces.getObjectProperties().get(propVal));
+                                            if (m.find()) {
+                                                tsi = interfacesFound.get(m.group(1));
+                                                startOffset += m.group(2).length();
+                                            }
+
+                                        }
+                                        if (tsi != null) {
+                                            for (String value : tsi.getObjectProperties().keySet()) {
+                                                if (filters.length < 2) {
+                                                    TypescriptHTMLItem item = new TypescriptHTMLItem(value, startOffset, caretOffset);
+                                                    completionResultSet.addItem(item);
+                                                } else if (value.toLowerCase().startsWith(filters[1])) {
+                                                    TypescriptHTMLItem item = new TypescriptHTMLItem(value, startOffset, caretOffset);
+                                                    completionResultSet.addItem(item);
+                                                }
                                             }
                                         }
                                     }
                                 } else {
                                     //todo
+                                }
+                            }
+                        }
+                    } else {
+                        for (TSInterface interfaces : interfacesFound.values()) {
+                            for (String propVal : interfaces.getObjectProperties().keySet()) {
+                                System.out.println(propVal);
+                                if (propVal.contains(filter)) {
+                                    TypescriptHTMLItem item = new TypescriptHTMLItem(propVal, startOffset, caretOffset);
+                                    completionResultSet.addItem(item);
                                 }
                             }
                         }
@@ -231,6 +254,7 @@ public class TypescriptHTMLProvider implements CompletionProvider {
     }
 
     private static Map<String, TSInterface> createAllInterfaces(String text) {
+
         String searchNamePatternString = "(interface )([\\S]+)";
         String searchExtendsPatternString = "(extends )([\\S]+)( \\{)";
         String simplePropOrFunction = "(\\S+): ([a-zA-Z}\\[\\]]+);";

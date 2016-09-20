@@ -5,6 +5,7 @@ import java.util.Map;
 
 /**
  * Basic class to identify interfaces
+ *
  * @author jwiesmann
  */
 public class TSInterface {
@@ -14,6 +15,7 @@ public class TSInterface {
     private Map<String, String> objectFunctions;
     private String name;
     private String extendsInterfaceName;
+
 
     public TSInterface(boolean extendsInterface, String name) {
         this.extendsInterface = extendsInterface;

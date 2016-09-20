@@ -47,7 +47,6 @@ public class WatchDir {
     private final WatchService watcher;
     private final Map<WatchKey,Path> keys;
     private final boolean recursive;
-    private boolean trace = false;
 
     @SuppressWarnings("unchecked")
     static <T> WatchEvent<T> cast(WatchEvent<?> event) {
@@ -59,16 +58,6 @@ public class WatchDir {
      */
     private void register(Path dir) throws IOException {
         WatchKey key = dir.register(watcher, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
-        if (trace) {
-            Path prev = keys.get(key);
-            if (prev == null) {
-                System.out.format("register: %s\n", dir);
-            } else {
-                if (!dir.equals(prev)) {
-                    System.out.format("update: %s -> %s\n", prev, dir);
-                }
-            }
-        }
         keys.put(key, dir);
     }
 
@@ -94,19 +83,14 @@ public class WatchDir {
      */
     WatchDir(Path dir, boolean recursive) throws IOException {
         this.watcher = FileSystems.getDefault().newWatchService();
-        this.keys = new HashMap<WatchKey,Path>();
+        this.keys = new HashMap<>();
         this.recursive = recursive;
 
         if (recursive) {
-            System.out.format("Scanning %s ...\n", dir);
             registerAll(dir);
-            System.out.println("Done.");
         } else {
             register(dir);
         }
-
-        // enable trace after initial registration
-        this.trace = true;
     }
 
     /**
@@ -125,7 +109,6 @@ public class WatchDir {
 
             Path dir = keys.get(key);
             if (dir == null) {
-                System.err.println("WatchKey not recognized!!");
                 continue;
             }
 
@@ -143,6 +126,7 @@ public class WatchDir {
                 Path child = dir.resolve(name);
 
                 // print out event
+                // TODO
                 System.out.format("%s: %s\n", event.kind().name(), child);
 
                 // if directory is created, and watching recursively, then
