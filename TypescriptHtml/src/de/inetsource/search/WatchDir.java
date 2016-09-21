@@ -1,4 +1,4 @@
-package de.inetsource;
+package de.inetsource.search;
 
 /*
  * Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
@@ -42,11 +42,12 @@ import java.util.*;
  * Example to watch a directory (or tree) for changes to files.
  */
 
-public class WatchDir {
+public class WatchDir implements Runnable{
 
     private final WatchService watcher;
     private final Map<WatchKey,Path> keys;
     private final boolean recursive;
+    private final TSFileAnalyzer analyzer;
 
     @SuppressWarnings("unchecked")
     static <T> WatchEvent<T> cast(WatchEvent<?> event) {
@@ -81,10 +82,11 @@ public class WatchDir {
     /**
      * Creates a WatchService and registers the given directory
      */
-    WatchDir(Path dir, boolean recursive) throws IOException {
+    WatchDir(Path dir, boolean recursive, TSFileAnalyzer analyzer) throws IOException {
         this.watcher = FileSystems.getDefault().newWatchService();
         this.keys = new HashMap<>();
         this.recursive = recursive;
+        this.analyzer = analyzer;
 
         if (recursive) {
             registerAll(dir);
@@ -128,7 +130,7 @@ public class WatchDir {
                 // print out event
                 // TODO
                 System.out.format("%s: %s\n", event.kind().name(), child);
-
+                analyzer.createInterfaceForSingleFile(child.toFile());
                 // if directory is created, and watching recursively, then
                 // register it and its sub-directories
                 if (recursive && (kind == ENTRY_CREATE)) {
@@ -153,6 +155,11 @@ public class WatchDir {
                 }
             }
         }
+    }
+
+    @Override
+    public void run() {
+        processEvents();
     }
 }
 

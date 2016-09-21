@@ -1,6 +1,6 @@
 Manifest-Version: 1.0
 AutoUpdate-Show-In-Client: true
-OpenIDE-Module: com.geekdivers
+OpenIDE-Module: TypescriptHTML
 OpenIDE-Module-Localizing-Bundle: de/inetsource/Bundle.properties
-OpenIDE-Module-Specification-Version: 1.0
+OpenIDE-Module-Specification-Version: 0.1
 
