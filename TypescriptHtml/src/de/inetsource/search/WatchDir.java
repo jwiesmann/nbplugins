@@ -47,7 +47,7 @@ public class WatchDir implements Runnable{
     private final WatchService watcher;
     private final Map<WatchKey,Path> keys;
     private final boolean recursive;
-    private final TSFileAnalyzer analyzer;
+    private final TSAnalyzer analyzer;
 
     @SuppressWarnings("unchecked")
     static <T> WatchEvent<T> cast(WatchEvent<?> event) {
@@ -82,7 +82,7 @@ public class WatchDir implements Runnable{
     /**
      * Creates a WatchService and registers the given directory
      */
-    WatchDir(Path dir, boolean recursive, TSFileAnalyzer analyzer) throws IOException {
+    WatchDir(Path dir, boolean recursive, TSAnalyzer analyzer) throws IOException {
         this.watcher = FileSystems.getDefault().newWatchService();
         this.keys = new HashMap<>();
         this.recursive = recursive;

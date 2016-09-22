@@ -1,8 +1,9 @@
 package de.inetsource;
 
 import de.inetsource.search.SearchPattern;
-import de.inetsource.search.TSFileAnalyzer;
+import de.inetsource.search.TSAnalyzer;
 import de.inetsource.search.TSMatcher;
+import de.inetsource.search.TSResult;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -25,10 +26,10 @@ import org.netbeans.spi.editor.completion.support.AsyncCompletionTask;
 @MimeRegistration(mimeType = "text/html", service = CompletionProvider.class)
 public class TypescriptHTMLProvider implements CompletionProvider {
 
-    TSFileAnalyzer analyzer;
+    TSAnalyzer analyzer;
 
     public TypescriptHTMLProvider() {
-        analyzer = new TSFileAnalyzer();
+        analyzer = new TSAnalyzer();
     }
 
     @Override
@@ -46,10 +47,11 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                 Map<String, TSInterface> interfacesFound = new HashMap<>();
                 try {
                     final StyledDocument bDoc = (StyledDocument) document;
-                    filter = getFilterValue(bDoc, caretOffset);
+                    TSResult tSResult = getFilterValue(bDoc, caretOffset);
                     String content = bDoc.getText(0, caretOffset); // that is the max text we need...maybe even less
                     Matcher m = TSMatcher.find(SearchPattern.NG_CONTROLLER, content);
-                    if (m != null && filter != null) {
+                    if (m != null && tSResult != null) {
+                        filter = tSResult.getFilterResult();
                         String ngControllerName = m.group(2);
                         startOffset = caretOffset - filter.length();
                         interfacesFound.putAll(analyzer.findInterfacesFromController(ngControllerName));
@@ -120,20 +122,23 @@ public class TypescriptHTMLProvider implements CompletionProvider {
         return 0;
     }
 
-    static String getFilterValue(StyledDocument doc, int offset) {
+    static TSResult getFilterValue(StyledDocument doc, int offset) {
         try {
             Element lineElement = doc.getParagraphElement(offset);
             int start = lineElement.getStartOffset();
             String filter = null;
             String lineToCheck = doc.getText(start, offset - start);
-            if (lineToCheck.contains("{{")) {
+            Matcher ngRepeat = TSMatcher.find(SearchPattern.NG_REPEAT, lineToCheck);
+            if (ngRepeat != null) {
+                return new TSResult(ngRepeat.group(3), true);
+            } else if (lineToCheck.contains("{{")) {
                 int firstBrackets = lineToCheck.indexOf("{{");
                 while (firstBrackets > 0 && firstBrackets < (offset - start)) {
                     filter = lineToCheck.substring(firstBrackets + 2);
                     System.out.println("filter:" + filter);
                     firstBrackets = lineToCheck.indexOf("{{", firstBrackets + 1);
                 }
-                return filter;
+                return new TSResult(filter, false); // TODO check if array
             }
 
         } catch (BadLocationException ex) {

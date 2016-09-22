@@ -22,7 +22,7 @@ import org.openide.loaders.DataObject;
 import org.openide.util.Exceptions;
 import org.openide.windows.TopComponent;
 
-public class TSFileAnalyzer {
+public class TSAnalyzer {
 
     private final Map<String, TSInterface> allInterfaces;
     private final Map<String, String> allController;
@@ -30,7 +30,7 @@ public class TSFileAnalyzer {
     private final Project thisProject;
     private File projectDir;
 
-    public TSFileAnalyzer() {
+    public TSAnalyzer() {
         allInterfaces = new HashMap<>();
         allController = new HashMap<>();
         thisProject = lookupProject();
@@ -71,7 +71,7 @@ public class TSFileAnalyzer {
                         found.getObjectProperties().putAll(extenededInterface.getObjectProperties());
                     }
                 }
-                
+
             }
 
             System.out.println("interfaces created:" + allInterfaces.size());
@@ -121,19 +121,7 @@ public class TSFileAnalyzer {
             while (line != null) {
 
                 if (insideInterface) {
-                    Matcher simpleProp = TSMatcher.find(SearchPattern.SIMPLE_PROPERTY_OR_FUNCTION, line);
-                    if (simpleProp != null && tsi != null) {
-                        if (simpleProp.group(1).contains("(")) {
-                            tsi.getObjectFunctions().put(simpleProp.group(1), simpleProp.group(2));
-                        } else {
-                            tsi.getObjectProperties().put(simpleProp.group(1), simpleProp.group(2));
-                        }
-                    }
-                    insideInterface = isInterfaceDone(line, bracketsCount, insideInterface);
-                    if (!insideInterface) {
-                        result.put(tsi.getName(), tsi);
-                    }
-
+                    insideInterface = searchFunctionOrProperty(line, tsi, insideInterface, bracketsCount, result);
                 }
                 Matcher m = TSMatcher.find(SearchPattern.IS_INTERFACE, line);
                 if (!insideInterface && m != null) {
@@ -158,6 +146,24 @@ public class TSFileAnalyzer {
         }
         System.out.printf(result.size() + " ==> in Reader: %d%n", System.currentTimeMillis() - start);
         return result;
+    }
+
+    public boolean searchFunctionOrProperty(String line, TSInterface tsi, boolean insideInterface, int bracketsCount, Map<String, TSInterface> result) {
+        if (tsi != null) {
+            Matcher simpleProp = TSMatcher.find(SearchPattern.SIMPLE_PROPERTY_OR_FUNCTION, line);
+            if (simpleProp != null) {
+                if (simpleProp.group(1).contains("(")) {
+                    tsi.getObjectFunctions().put(simpleProp.group(1), simpleProp.group(2));
+                } else {
+                    tsi.getObjectProperties().put(simpleProp.group(1), simpleProp.group(2));
+                }
+            }
+            insideInterface = isInterfaceDone(line, bracketsCount, insideInterface);
+            if (!insideInterface) {
+                result.put(tsi.getName(), tsi);
+            }
+        }
+        return insideInterface;
     }
 
     private Project lookupProject() {
