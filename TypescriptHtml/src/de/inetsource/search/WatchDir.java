@@ -30,7 +30,6 @@ package de.inetsource.search;
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
 import java.nio.file.*;
 import static java.nio.file.StandardWatchEventKinds.*;
 import static java.nio.file.LinkOption.*;
@@ -41,17 +40,16 @@ import java.util.*;
 /**
  * Example to watch a directory (or tree) for changes to files.
  */
-
-public class WatchDir implements Runnable{
+public class WatchDir implements Runnable {
 
     private final WatchService watcher;
-    private final Map<WatchKey,Path> keys;
+    private final Map<WatchKey, Path> keys;
     private final boolean recursive;
     private final TSAnalyzer analyzer;
 
     @SuppressWarnings("unchecked")
     static <T> WatchEvent<T> cast(WatchEvent<?> event) {
-        return (WatchEvent<T>)event;
+        return (WatchEvent<T>) event;
     }
 
     /**
@@ -71,8 +69,7 @@ public class WatchDir implements Runnable{
         Files.walkFileTree(start, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
-                throws IOException
-            {
+                    throws IOException {
                 register(dir);
                 return FileVisitResult.CONTINUE;
             }
@@ -114,7 +111,7 @@ public class WatchDir implements Runnable{
                 continue;
             }
 
-            for (WatchEvent<?> event: key.pollEvents()) {
+            for (WatchEvent<?> event : key.pollEvents()) {
                 WatchEvent.Kind kind = event.kind();
 
                 // TBD - provide example of how OVERFLOW event is handled
@@ -130,7 +127,9 @@ public class WatchDir implements Runnable{
                 // print out event
                 // TODO
                 System.out.format("%s: %s\n", event.kind().name(), child);
-                analyzer.createInterfaceForSingleFile(child.toFile());
+                if (kind == ENTRY_CREATE || kind == ENTRY_MODIFY) {
+                    analyzer.createInterfaceForSingleFile(child.toFile());
+                }
                 // if directory is created, and watching recursively, then
                 // register it and its sub-directories
                 if (recursive && (kind == ENTRY_CREATE)) {
@@ -162,4 +161,3 @@ public class WatchDir implements Runnable{
         processEvents();
     }
 }
-

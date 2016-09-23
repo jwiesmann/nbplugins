@@ -1,5 +1,7 @@
 package de.inetsource;
 
+import de.inetsource.search.TSAnalyzer;
+import de.inetsource.search.TSResult;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics;
@@ -26,21 +28,26 @@ public class TypescriptHTMLItem implements CompletionItem {
     private static Color fieldColor = Color.decode("0x0000B2");
     private int caretOffset;
     private final int dotOffset;
+    private final TSResult tsResult;
+    private final TSAnalyzer tsAnalyzer;
 
-    public TypescriptHTMLItem(String text, int dotOffset, int caretOffset) {
+    public TypescriptHTMLItem(String text, int dotOffset, int caretOffset, TSResult tSResult, TSAnalyzer tsAnalyzer) {
         this.text = text;
         this.dotOffset = dotOffset;
         this.caretOffset = caretOffset;
+        this.tsResult = tSResult;
+        this.tsAnalyzer = tsAnalyzer;
     }
 
     @Override
     public void defaultAction(JTextComponent component) {
         try {
             StyledDocument doc = (StyledDocument) component.getDocument();
-            //Here we remove the characters starting at the start offset
-            //and ending at the point where the caret is currently found:
             doc.remove(dotOffset, caretOffset - dotOffset);
             doc.insertString(dotOffset, text, null);
+            if (!tsResult.getFilterResult().equals(tsResult.getVariableUsed())) {
+                tsAnalyzer.copyInterface(tsResult.getRealInterfaceName(), tsResult.getVariableUsed());
+            }
             Completion.get().hideAll();
         } catch (BadLocationException ex) {
             Exceptions.printStackTrace(ex);

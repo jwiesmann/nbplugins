@@ -23,26 +23,40 @@ import org.openide.util.Exceptions;
 import org.openide.windows.TopComponent;
 
 public class TSAnalyzer {
-
+    
     private final Map<String, TSInterface> allInterfaces;
+    private final Map<String, TSInterface> dynamicInterfaces;
     private final Map<String, String> allController;
     private WatchDir tsWatchService;
     private final Project thisProject;
     private File projectDir;
-
+    
     public TSAnalyzer() {
         allInterfaces = new HashMap<>();
         allController = new HashMap<>();
+        dynamicInterfaces = new HashMap<>();
         thisProject = lookupProject();
         projectDir = findProjectDir(thisProject);
         findFilesAndCreateTSInstances(projectDir);
         startWatcher();
     }
-
+    
+    public void copyInterface(String originalName, String newName) {
+        TSInterface tsInterface = allInterfaces.get(originalName);
+        if (tsInterface != null) {
+            TSInterface tsi = new TSInterface(tsInterface.isExtendsInterface(), newName);
+            tsi.setExtendsInterfaceName(tsInterface.getExtendsInterfaceName());
+            tsi.setObjectFunctions(tsInterface.getObjectFunctions());
+            tsi.setObjectProperties(tsInterface.getObjectProperties());
+            dynamicInterfaces.put(newName, tsi);
+            System.out.println("added dynamic interface" + newName);
+        }
+    }
+    
     public String getController(String controllerName) {
         return allController.get(controllerName);
     }
-
+    
     private void startWatcher() {
         try {
             tsWatchService = new WatchDir(projectDir.toPath(), true, this);
@@ -51,7 +65,7 @@ public class TSAnalyzer {
         } catch (IOException ex) {
         }
     }
-
+    
     public Map<String, TSInterface> findInterfacesFromController(String controllerName) {
         Map<String, TSInterface> foundSuggestions = new HashMap<>();
         String controllerContent = allController.get(controllerName);
@@ -71,26 +85,25 @@ public class TSAnalyzer {
                         found.getObjectProperties().putAll(extenededInterface.getObjectProperties());
                     }
                 }
-
+                
             }
-
-            System.out.println("interfaces created:" + allInterfaces.size());
         }
+        foundSuggestions.putAll(dynamicInterfaces);
         return foundSuggestions;
     }
-
+    
     public final void findFilesAndCreateTSInstances(File projectDir) {
         Collection<File> foundFiles2 = FileUtils.listFiles(projectDir, new SuffixFileFilter(".ts"),
                 TrueFileFilter.INSTANCE);
-
+        
         for (File ff : foundFiles2) {
             if (!ff.getAbsolutePath().contains("node_modules")) {
-
+                
                 createInterfaceForSingleFile(ff);
             }
         }
     }
-
+    
     public void createInterfaceForSingleFile(File ff) {
         try {
             Date startDate = new Date();
@@ -103,14 +116,14 @@ public class TSAnalyzer {
             }
             allInterfaces.putAll(createInterfaceFromFileContent(content));
             System.out.println("done:" + (new Date().getTime() - startDate.getTime()) + " ms");
-
+            
         } catch (IOException ex) {
             Exceptions.printStackTrace(ex);
         }
     }
-
+    
     private Map<String, TSInterface> createInterfaceFromFileContent(String text) {
-
+        
         long start = System.currentTimeMillis();
         Map<String, TSInterface> result = new HashMap<>();
         try (BufferedReader reader = new BufferedReader(new StringReader(text))) {
@@ -119,7 +132,7 @@ public class TSAnalyzer {
             boolean insideInterface = false;
             TSInterface tsi = null;
             while (line != null) {
-
+                
                 if (insideInterface) {
                     insideInterface = searchFunctionOrProperty(line, tsi, insideInterface, bracketsCount, result);
                 }
@@ -147,7 +160,7 @@ public class TSAnalyzer {
         System.out.printf(result.size() + " ==> in Reader: %d%n", System.currentTimeMillis() - start);
         return result;
     }
-
+    
     public boolean searchFunctionOrProperty(String line, TSInterface tsi, boolean insideInterface, int bracketsCount, Map<String, TSInterface> result) {
         if (tsi != null) {
             Matcher simpleProp = TSMatcher.find(SearchPattern.SIMPLE_PROPERTY_OR_FUNCTION, line);
@@ -165,7 +178,7 @@ public class TSAnalyzer {
         }
         return insideInterface;
     }
-
+    
     private Project lookupProject() {
         Project p = TopComponent.getRegistry().getActivated().getLookup().lookup(Project.class);
         if (p == null) {
@@ -178,7 +191,7 @@ public class TSAnalyzer {
         }
         return null;
     }
-
+    
     private File findProjectDir(Project thisProject) {
         if (thisProject.getProjectDirectory().getParent() != null) {
             projectDir = FileUtil.toFile(thisProject.getProjectDirectory().getParent());
@@ -190,7 +203,7 @@ public class TSAnalyzer {
         }
         return null;
     }
-
+    
     public boolean isInterfaceDone(String line, int bracketsCount, boolean insideInterface) {
         if (line.contains("{")) {
             bracketsCount += StringUtils.countMatches(line, "{");
@@ -202,5 +215,5 @@ public class TSAnalyzer {
         }
         return insideInterface;
     }
-
+    
 }

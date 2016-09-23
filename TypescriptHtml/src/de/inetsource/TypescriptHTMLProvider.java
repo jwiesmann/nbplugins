@@ -45,11 +45,13 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                 int startOffset;
                 String filter;
                 Map<String, TSInterface> interfacesFound = new HashMap<>();
+                Map<String, String> interfaceMapper = new HashMap<>();
+                TSResult tSResult;
                 try {
                     final StyledDocument bDoc = (StyledDocument) document;
-                    TSResult tSResult = getFilterValue(bDoc, caretOffset);
                     String content = bDoc.getText(0, caretOffset); // that is the max text we need...maybe even less
                     Matcher m = TSMatcher.find(SearchPattern.NG_CONTROLLER, content);
+                    tSResult = getFilterValue(bDoc, caretOffset);
                     if (m != null && tSResult != null) {
                         filter = tSResult.getFilterResult();
                         String ngControllerName = m.group(2);
@@ -63,55 +65,64 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                     completionResultSet.finish();
                     return;
                 }
-                // Iterate through the available locales
-                // and assign each country display name
-                // to a CompletionResultSet:
                 if (filter.indexOf(".") > 0) {
                     int dotFound = filter.lastIndexOf(".");
                     startOffset += dotFound + 1;
                     String filters[] = filter.split("\\.");
-                    for (TSInterface interfaces : interfacesFound.values()) {
-                        // now that gets a bit ugly...
-                        for (String propVal : interfaces.getObjectProperties().keySet()) {
-                            if (filters.length <= 2) {
-                                if (propVal.equals(filters[0])) {
-                                    TSInterface tsi = interfacesFound.get(interfaces.getObjectProperties().get(propVal));
-                                    if (tsi == null) {
-                                        Matcher m = TSMatcher.find(SearchPattern.TYPE_IS_ARRAY, interfaces.getObjectProperties().get(propVal));
-                                        if (m != null) {
-                                            tsi = interfacesFound.get(m.group(1));
-                                            startOffset += m.group(2).length();
-                                        }
-                                    }
-                                    if (tsi != null) {
-                                        for (String value : tsi.getObjectProperties().keySet()) {
-                                            if (filters.length < 2) {
-                                                TypescriptHTMLItem item = new TypescriptHTMLItem(value, startOffset, caretOffset);
-                                                completionResultSet.addItem(item);
-                                            } else if (value.toLowerCase().startsWith(filters[1])) {
-                                                TypescriptHTMLItem item = new TypescriptHTMLItem(value, startOffset, caretOffset);
-                                                completionResultSet.addItem(item);
+
+                    TSInterface sInterface = interfacesFound.get(filters[0]);
+                    if (sInterface != null) {
+                        setPossibleCompletion(sInterface, filters, tSResult, sInterface, startOffset, caretOffset, completionResultSet);
+                    } else {
+                        for (TSInterface interfaces : interfacesFound.values()) {
+                            // now that gets a bit ugly...
+                            for (String propVal : interfaces.getObjectProperties().keySet()) {
+                                if (filters.length <= 2) {
+                                    if (propVal.equals(filters[0])) {
+                                        TSInterface tsi = interfacesFound.get(interfaces.getObjectProperties().get(propVal));
+                                        if (tsi == null) {
+                                            Matcher m = TSMatcher.find(SearchPattern.TYPE_IS_ARRAY, interfaces.getObjectProperties().get(propVal));
+                                            if (m != null) {
+                                                tsi = interfacesFound.get(m.group(1));
+                                                startOffset += m.group(2).length();
                                             }
                                         }
-                                    }
+                                        if (tsi != null) {
+                                            setPossibleCompletion(tsi, filters, tSResult, interfaces, startOffset, caretOffset, completionResultSet);
+                                        } 
+                                   }
+                                } else {
+                                    // todo
                                 }
-                            } else {
-                                //todo
                             }
                         }
                     }
                 } else {
                     for (TSInterface interfaces : interfacesFound.values()) {
                         for (String propVal : interfaces.getObjectProperties().keySet()) {
-                            System.out.println(propVal);
                             if (propVal.contains(filter)) {
-                                TypescriptHTMLItem item = new TypescriptHTMLItem(propVal, startOffset, caretOffset);
+                                tSResult.setRealInterfaceName(interfaces.getObjectProperties().get(propVal));
+                                TypescriptHTMLItem item = new TypescriptHTMLItem(propVal, startOffset, caretOffset, tSResult, analyzer);
                                 completionResultSet.addItem(item);
                             }
                         }
                     }
                 }
                 completionResultSet.finish();
+            }
+
+            private void setPossibleCompletion(TSInterface tsi, String[] filters, TSResult tSResult, TSInterface interfaces, int startOffset, int caretOffset, CompletionResultSet completionResultSet) {
+                for (String value : tsi.getObjectProperties().keySet()) {
+                    if (filters.length < 2) {
+                        tSResult.setRealInterfaceName(interfaces.getName());
+                        TypescriptHTMLItem item = new TypescriptHTMLItem(value, startOffset, caretOffset, tSResult, analyzer);
+                        completionResultSet.addItem(item);
+                    } else if (value.toLowerCase().startsWith(filters[1])) {
+                        tSResult.setRealInterfaceName(interfaces.getName());
+                        TypescriptHTMLItem item = new TypescriptHTMLItem(value, startOffset, caretOffset, tSResult, analyzer);
+                        completionResultSet.addItem(item);
+                    }
+                }
             }
         }, jtc);
     }
@@ -130,7 +141,7 @@ public class TypescriptHTMLProvider implements CompletionProvider {
             String lineToCheck = doc.getText(start, offset - start);
             Matcher ngRepeat = TSMatcher.find(SearchPattern.NG_REPEAT, lineToCheck);
             if (ngRepeat != null) {
-                return new TSResult(ngRepeat.group(3), true);
+                return new TSResult(ngRepeat.group(3), ngRepeat.group(2), true);
             } else if (lineToCheck.contains("{{")) {
                 int firstBrackets = lineToCheck.indexOf("{{");
                 while (firstBrackets > 0 && firstBrackets < (offset - start)) {
@@ -138,7 +149,7 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                     System.out.println("filter:" + filter);
                     firstBrackets = lineToCheck.indexOf("{{", firstBrackets + 1);
                 }
-                return new TSResult(filter, false); // TODO check if array
+                return new TSResult(filter, filter, false); // TODO check if array
             }
 
         } catch (BadLocationException ex) {
