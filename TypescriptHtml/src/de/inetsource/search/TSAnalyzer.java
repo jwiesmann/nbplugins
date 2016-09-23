@@ -23,14 +23,14 @@ import org.openide.util.Exceptions;
 import org.openide.windows.TopComponent;
 
 public class TSAnalyzer {
-    
+
     private final Map<String, TSInterface> allInterfaces;
     private final Map<String, TSInterface> dynamicInterfaces;
     private final Map<String, String> allController;
     private WatchDir tsWatchService;
     private final Project thisProject;
     private File projectDir;
-    
+
     public TSAnalyzer() {
         allInterfaces = new HashMap<>();
         allController = new HashMap<>();
@@ -40,8 +40,8 @@ public class TSAnalyzer {
         findFilesAndCreateTSInstances(projectDir);
         startWatcher();
     }
-    
-    public void copyInterface(String originalName, String newName) {
+
+    public void copyInterfaceAndAddToDynamic(String originalName, String newName) {
         TSInterface tsInterface = allInterfaces.get(originalName);
         if (tsInterface != null) {
             TSInterface tsi = new TSInterface(tsInterface.isExtendsInterface(), newName);
@@ -52,11 +52,11 @@ public class TSAnalyzer {
             System.out.println("added dynamic interface" + newName);
         }
     }
-    
+
     public String getController(String controllerName) {
         return allController.get(controllerName);
     }
-    
+
     private void startWatcher() {
         try {
             tsWatchService = new WatchDir(projectDir.toPath(), true, this);
@@ -65,8 +65,30 @@ public class TSAnalyzer {
         } catch (IOException ex) {
         }
     }
-    
-    public Map<String, TSInterface> findInterfacesFromController(String controllerName) {
+
+    private void findAndAddDynamicInterfaces(Map<String, TSInterface> foundSuggestions, String htmlContent) {
+        // search for ng-repeats and create dynamic interfaces 
+        Matcher ngRepeat = TSMatcher.getMatcher(SearchPattern.NG_REPEAT_FINISHED, htmlContent);
+        while (ngRepeat.find()) {
+            for (TSInterface tsi : foundSuggestions.values()) {
+                for (String varUsed : tsi.getObjectProperties().keySet()) {
+                    if (varUsed.equals(ngRepeat.group(3))) {
+                        Matcher m = TSMatcher.find(SearchPattern.TYPE_IS_ARRAY, tsi.getObjectProperties().get(varUsed));
+                        if (m != null) {
+                            tsi = foundSuggestions.get(m.group(1));
+                            if (tsi != null) {
+                                copyInterfaceAndAddToDynamic(tsi.getName(), ngRepeat.group(2));
+                                System.out.println("trying to create dynamic interface from: " + tsi.getName() + " to: " + ngRepeat.group(2));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public Map<String, TSInterface> findInterfacesFromController(String controllerName, String htmlContent) {
+        dynamicInterfaces.clear();
         Map<String, TSInterface> foundSuggestions = new HashMap<>();
         String controllerContent = allController.get(controllerName);
         if (controllerContent != null) {
@@ -84,26 +106,27 @@ public class TSAnalyzer {
                         found.getObjectFunctions().putAll(extenededInterface.getObjectFunctions());
                         found.getObjectProperties().putAll(extenededInterface.getObjectProperties());
                     }
+                    // search all childs of that
+                    buildChildren(found, 0);
                 }
-                
             }
         }
-        foundSuggestions.putAll(dynamicInterfaces);
+        findAndAddDynamicInterfaces(foundSuggestions, htmlContent);
         return foundSuggestions;
     }
-    
+
     public final void findFilesAndCreateTSInstances(File projectDir) {
         Collection<File> foundFiles2 = FileUtils.listFiles(projectDir, new SuffixFileFilter(".ts"),
                 TrueFileFilter.INSTANCE);
-        
+
         for (File ff : foundFiles2) {
             if (!ff.getAbsolutePath().contains("node_modules")) {
-                
+
                 createInterfaceForSingleFile(ff);
             }
         }
     }
-    
+
     public void createInterfaceForSingleFile(File ff) {
         try {
             Date startDate = new Date();
@@ -116,14 +139,14 @@ public class TSAnalyzer {
             }
             allInterfaces.putAll(createInterfaceFromFileContent(content));
             System.out.println("done:" + (new Date().getTime() - startDate.getTime()) + " ms");
-            
+
         } catch (IOException ex) {
             Exceptions.printStackTrace(ex);
         }
     }
-    
+
     private Map<String, TSInterface> createInterfaceFromFileContent(String text) {
-        
+
         long start = System.currentTimeMillis();
         Map<String, TSInterface> result = new HashMap<>();
         try (BufferedReader reader = new BufferedReader(new StringReader(text))) {
@@ -132,7 +155,7 @@ public class TSAnalyzer {
             boolean insideInterface = false;
             TSInterface tsi = null;
             while (line != null) {
-                
+
                 if (insideInterface) {
                     insideInterface = searchFunctionOrProperty(line, tsi, insideInterface, bracketsCount, result);
                 }
@@ -160,7 +183,7 @@ public class TSAnalyzer {
         System.out.printf(result.size() + " ==> in Reader: %d%n", System.currentTimeMillis() - start);
         return result;
     }
-    
+
     public boolean searchFunctionOrProperty(String line, TSInterface tsi, boolean insideInterface, int bracketsCount, Map<String, TSInterface> result) {
         if (tsi != null) {
             Matcher simpleProp = TSMatcher.find(SearchPattern.SIMPLE_PROPERTY_OR_FUNCTION, line);
@@ -178,7 +201,7 @@ public class TSAnalyzer {
         }
         return insideInterface;
     }
-    
+
     private Project lookupProject() {
         Project p = TopComponent.getRegistry().getActivated().getLookup().lookup(Project.class);
         if (p == null) {
@@ -191,7 +214,7 @@ public class TSAnalyzer {
         }
         return null;
     }
-    
+
     private File findProjectDir(Project thisProject) {
         if (thisProject.getProjectDirectory().getParent() != null) {
             projectDir = FileUtil.toFile(thisProject.getProjectDirectory().getParent());
@@ -203,7 +226,7 @@ public class TSAnalyzer {
         }
         return null;
     }
-    
+
     public boolean isInterfaceDone(String line, int bracketsCount, boolean insideInterface) {
         if (line.contains("{")) {
             bracketsCount += StringUtils.countMatches(line, "{");
@@ -215,5 +238,23 @@ public class TSAnalyzer {
         }
         return insideInterface;
     }
-    
+
+    public Map<String, TSInterface> getDynamicInterfaces() {
+        return dynamicInterfaces;
+    }
+
+    private void buildChildren(TSInterface parentInterface, int maxLevel) {
+        if (maxLevel <= 5) {
+            for (String key : parentInterface.getObjectProperties().keySet()) {
+                String interfaceName = parentInterface.getObjectProperties().get(key);
+                if (allInterfaces.containsKey(interfaceName)) {
+                    TSInterface child = allInterfaces.get(interfaceName);
+                    System.out.println("FOUND Child: " + parentInterface.getName() + " >> " + child.getName() + " added as " + key);
+                    parentInterface.getChildren().put(key, child);
+                    buildChildren(child, maxLevel + 1);
+                }
+            }
+        }
+    }
+
 }

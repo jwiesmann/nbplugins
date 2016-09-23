@@ -45,9 +45,6 @@ public class TypescriptHTMLItem implements CompletionItem {
             StyledDocument doc = (StyledDocument) component.getDocument();
             doc.remove(dotOffset, caretOffset - dotOffset);
             doc.insertString(dotOffset, text, null);
-            if (!tsResult.getFilterResult().equals(tsResult.getVariableUsed())) {
-                tsAnalyzer.copyInterface(tsResult.getRealInterfaceName(), tsResult.getVariableUsed());
-            }
             Completion.get().hideAll();
         } catch (BadLocationException ex) {
             Exceptions.printStackTrace(ex);

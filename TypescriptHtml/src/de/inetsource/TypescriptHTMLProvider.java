@@ -45,18 +45,20 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                 int startOffset;
                 String filter;
                 Map<String, TSInterface> interfacesFound = new HashMap<>();
-                Map<String, String> interfaceMapper = new HashMap<>();
+                Map<String, TSInterface> dynamicInterfaces = new HashMap<>();
+
                 TSResult tSResult;
                 try {
                     final StyledDocument bDoc = (StyledDocument) document;
-                    String content = bDoc.getText(0, caretOffset); // that is the max text we need...maybe even less
+                    String content = bDoc.getText(0, caretOffset);
                     Matcher m = TSMatcher.find(SearchPattern.NG_CONTROLLER, content);
                     tSResult = getFilterValue(bDoc, caretOffset);
                     if (m != null && tSResult != null) {
                         filter = tSResult.getFilterResult();
                         String ngControllerName = m.group(2);
                         startOffset = caretOffset - filter.length();
-                        interfacesFound.putAll(analyzer.findInterfacesFromController(ngControllerName));
+                        interfacesFound.putAll(analyzer.findInterfacesFromController(ngControllerName, content));
+                        interfacesFound.putAll(analyzer.getDynamicInterfaces());
                     } else {
                         completionResultSet.finish();
                         return;
@@ -65,7 +67,43 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                     completionResultSet.finish();
                     return;
                 }
-                if (filter.indexOf(".") > 0) {
+                System.out.println("fitering: " + filter);
+
+                for (TSInterface usedInterface : interfacesFound.values()) {
+                    for (String childInterface : usedInterface.getChildren().keySet()) {
+                        if (childInterface.startsWith(filter) && !filter.contains(".")) {
+                            TypescriptHTMLItem item = new TypescriptHTMLItem(childInterface, startOffset, caretOffset, tSResult, analyzer);
+                            completionResultSet.addItem(item);
+                        } else if (filter.startsWith(childInterface) && filter.contains(".")) {
+                            String interfaceAssumptions[] = filter.split("\\.");
+                            TSInterface lastOne = usedInterface.getChildren().get(interfaceAssumptions[0]);
+                            startOffset += lastOne.getName().length() + 1;
+                            int iterationSize = interfaceAssumptions.length;
+                            if (!filter.endsWith(".")) {
+                                iterationSize -= 1;
+                            }
+                            for (int i = 1; i < iterationSize; i++) {
+                                if (lastOne.getChildren() != null) {
+                                    lastOne = lastOne.getChildren().get(interfaceAssumptions[i]);
+                                    if (lastOne != null) {
+                                        startOffset += lastOne.getName().length() + 1;
+                                    }
+                                }
+                            }
+                            if (lastOne != null) {
+                                for (String value : lastOne.getObjectProperties().keySet()) {
+                                    if (value.toLowerCase().startsWith(interfaceAssumptions[interfaceAssumptions.length - 1])
+                                            || interfaceAssumptions.length == iterationSize) { // just after the dot
+                                        TypescriptHTMLItem item = new TypescriptHTMLItem(value, startOffset, caretOffset, tSResult, analyzer);
+                                        completionResultSet.addItem(item);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                /* if (filter.indexOf(".") > 0) {
                     int dotFound = filter.lastIndexOf(".");
                     startOffset += dotFound + 1;
                     String filters[] = filter.split("\\.");
@@ -89,8 +127,8 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                                         }
                                         if (tsi != null) {
                                             setPossibleCompletion(tsi, filters, tSResult, interfaces, startOffset, caretOffset, completionResultSet);
-                                        } 
-                                   }
+                                        }
+                                    }
                                 } else {
                                     // todo
                                 }
@@ -108,6 +146,13 @@ public class TypescriptHTMLProvider implements CompletionProvider {
                         }
                     }
                 }
+
+                for (TSInterface dynamicInterface : analyzer.getDynamicInterfaces().values()) {
+                    if (filter.length() <= 0) {
+                        TypescriptHTMLItem item = new TypescriptHTMLItem(dynamicInterface.getName(), startOffset, caretOffset, tSResult, analyzer);
+                        completionResultSet.addItem(item);
+                    }
+                }*/
                 completionResultSet.finish();
             }
 
@@ -137,24 +182,32 @@ public class TypescriptHTMLProvider implements CompletionProvider {
         try {
             Element lineElement = doc.getParagraphElement(offset);
             int start = lineElement.getStartOffset();
-            String filter = null;
             String lineToCheck = doc.getText(start, offset - start);
             Matcher ngRepeat = TSMatcher.find(SearchPattern.NG_REPEAT, lineToCheck);
             if (ngRepeat != null) {
-                return new TSResult(ngRepeat.group(3), ngRepeat.group(2), true);
-            } else if (lineToCheck.contains("{{")) {
-                int firstBrackets = lineToCheck.indexOf("{{");
-                while (firstBrackets > 0 && firstBrackets < (offset - start)) {
-                    filter = lineToCheck.substring(firstBrackets + 2);
-                    System.out.println("filter:" + filter);
-                    firstBrackets = lineToCheck.indexOf("{{", firstBrackets + 1);
+                if (ngRepeat.end() < lineToCheck.indexOf("{{")) {
+                    return checkForBrackets(lineToCheck, offset, start);
+                } else {
+                    return new TSResult(ngRepeat.group(3), ngRepeat.group(2), true);
                 }
-                return new TSResult(filter, filter, false); // TODO check if array
+            } else if (lineToCheck.contains("{{")) {
+                return checkForBrackets(lineToCheck, offset, start);
             }
 
         } catch (BadLocationException ex) {
         }
         return null;
+    }
+
+    public static TSResult checkForBrackets(String lineToCheck, int offset, int start) {
+        String filter = null;
+        int firstBrackets = lineToCheck.indexOf("{{");
+        while (firstBrackets > 0 && firstBrackets < (offset - start)) {
+            filter = lineToCheck.substring(firstBrackets + 2);
+            System.out.println("filter:" + filter);
+            firstBrackets = lineToCheck.indexOf("{{", firstBrackets + 1);
+        }
+        return new TSResult(filter, filter, false); // TODO check if array
     }
 
     static int indexOfWhite(char[] line) {

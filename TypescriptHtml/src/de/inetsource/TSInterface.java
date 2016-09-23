@@ -15,13 +15,14 @@ public class TSInterface {
     private Map<String, String> objectFunctions;
     private String name;
     private String extendsInterfaceName;
-
+    private Map<String, TSInterface> children;
 
     public TSInterface(boolean extendsInterface, String name) {
         this.extendsInterface = extendsInterface;
         this.name = name;
         this.objectFunctions = new HashMap<>();
         this.objectProperties = new HashMap<>();
+        this.children = new HashMap<>();
     }
 
     public boolean isExtendsInterface() {
@@ -62,6 +63,14 @@ public class TSInterface {
 
     public void setExtendsInterfaceName(String extendsInterfaceName) {
         this.extendsInterfaceName = extendsInterfaceName;
+    }
+
+    public Map<String, TSInterface> getChildren() {
+        return children;
+    }
+
+    public void setChildren(Map<String, TSInterface> children) {
+        this.children = children;
     }
 
 }
