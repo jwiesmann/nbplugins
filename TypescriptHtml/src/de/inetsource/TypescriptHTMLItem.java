@@ -23,20 +23,17 @@ import org.openide.util.ImageUtilities;
  */
 public class TypescriptHTMLItem implements CompletionItem {
 
-    private String text;
-    private static ImageIcon fieldIcon = new ImageIcon(ImageUtilities.loadImage("de/inetsource/1474226385_Image.png"));
-    private static Color fieldColor = Color.decode("0x0000B2");
-    private int caretOffset;
+    private final String text;
+    private static final ImageIcon ICON = new ImageIcon(ImageUtilities.loadImage("de/inetsource/1474226385_Image.png"));
+    private static final Color COLOR = Color.decode("0x0000B2");
+    private final int caretOffset;
     private final int dotOffset;
-    private final TSResult tsResult;
-    private final TSAnalyzer tsAnalyzer;
 
-    public TypescriptHTMLItem(String text, int dotOffset, int caretOffset, TSResult tSResult, TSAnalyzer tsAnalyzer) {
+
+    public TypescriptHTMLItem(String text, int dotOffset, int caretOffset) {
         this.text = text;
         this.dotOffset = dotOffset;
         this.caretOffset = caretOffset;
-        this.tsResult = tSResult;
-        this.tsAnalyzer = tsAnalyzer;
     }
 
     @Override
@@ -63,8 +60,8 @@ public class TypescriptHTMLItem implements CompletionItem {
     @Override
     public void render(Graphics g, Font defaultFont, Color defaultColor,
             Color backgroundColor, int width, int height, boolean selected) {
-        CompletionUtilities.renderHtml(fieldIcon, text, null, g, defaultFont,
-                (selected ? Color.white : fieldColor), width, height, selected);
+        CompletionUtilities.renderHtml(ICON, text, null, g, defaultFont,
+                (selected ? Color.white : COLOR), width, height, selected);
     }
 
     @Override

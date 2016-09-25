@@ -5,12 +5,12 @@ public class TSResult {
     private String filterResult;
     private String variableUsed;
     private String realInterfaceName;
-    private boolean isArray;
+    private TSResultType type;
 
-    public TSResult(String filterResult, String variableUsed, boolean isArray) {
+    public TSResult(String filterResult, String variableUsed, TSResultType type) {
         this.filterResult = filterResult;
-        this.variableUsed = variableUsed;        
-        this.isArray = isArray;
+        this.variableUsed = variableUsed;
+        this.type = type;
     }
 
     public String getFilterResult() {
@@ -19,14 +19,6 @@ public class TSResult {
 
     public void setFilterResult(String filterResult) {
         this.filterResult = filterResult;
-    }
-
-    public boolean isIsArray() {
-        return isArray;
-    }
-
-    public void setIsArray(boolean isArray) {
-        this.isArray = isArray;
     }
 
     public String getVariableUsed() {
@@ -43,6 +35,10 @@ public class TSResult {
 
     public void setRealInterfaceName(String realInterfaceName) {
         this.realInterfaceName = realInterfaceName;
+    }
+
+    public TSResultType getType() {
+        return type;
     }
 
 }

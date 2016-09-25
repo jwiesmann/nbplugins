@@ -128,7 +128,10 @@ public class WatchDir implements Runnable {
                 // TODO
                 System.out.format("%s: %s\n", event.kind().name(), child);
                 if (kind == ENTRY_CREATE || kind == ENTRY_MODIFY) {
-                    analyzer.createInterfaceForSingleFile(child.toFile());
+                    try {
+                        analyzer.createInterfaceForSingleFile(child.toFile());
+                    } catch (Exception e) {
+                    }
                 }
                 // if directory is created, and watching recursively, then
                 // register it and its sub-directories

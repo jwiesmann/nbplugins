@@ -41,16 +41,28 @@ public class TSAnalyzer {
         startWatcher();
     }
 
-    public void copyInterfaceAndAddToDynamic(String originalName, String newName) {
-        TSInterface tsInterface = allInterfaces.get(originalName);
+    public void copyInterfaceAndAddToDynamic(Map<String, TSInterface> foundInterfaces, String originalName, String newName, TSInterface originalInterface) {
+        TSInterface tsInterface = findInterface(originalName, foundInterfaces);
         if (tsInterface != null) {
-            TSInterface tsi = new TSInterface(tsInterface.isExtendsInterface(), newName);
-            tsi.setExtendsInterfaceName(tsInterface.getExtendsInterfaceName());
-            tsi.setObjectFunctions(tsInterface.getObjectFunctions());
-            tsi.setObjectProperties(tsInterface.getObjectProperties());
-            dynamicInterfaces.put(newName, tsi);
-            System.out.println("added dynamic interface" + newName);
+            if (tsInterface.getParent() == null) {
+                if (originalInterface == null) {
+                    originalInterface = tsInterface;
+                }
+                TSInterface tsi = copyInterface(originalInterface, newName);
+                tsInterface.getChildren().put(newName, tsi);
+                System.out.println("added dynamic interface " + newName + " to parent: " + tsInterface.getName());
+            } else {
+                copyInterfaceAndAddToDynamic(foundInterfaces, tsInterface.getParent().getName(), newName, tsInterface);
+            }
         }
+    }
+
+    private TSInterface copyInterface(TSInterface originalInterface, String newName) {
+        TSInterface tsi = new TSInterface(originalInterface.isExtendsInterface(), newName);
+        tsi.setExtendsInterfaceName(originalInterface.getExtendsInterfaceName());
+        tsi.setObjectFunctions(originalInterface.getObjectFunctions());
+        tsi.setObjectProperties(originalInterface.getObjectProperties());
+        return tsi;
     }
 
     public String getController(String controllerName) {
@@ -66,8 +78,18 @@ public class TSAnalyzer {
         }
     }
 
+    /**
+     * search for ng-repeats and create dynamic interfaces. Dynamic interface
+     * means that it might be in a angular specific term. For example
+     * ng-repeat="myVar in person" would create a "myVar" interface, that i can
+     * be found/added to the completion result. It also copies everything from
+     * 'person'
+     *
+     * @param foundSuggestions
+     * @param htmlContent
+     */
     private void findAndAddDynamicInterfaces(Map<String, TSInterface> foundSuggestions, String htmlContent) {
-        // search for ng-repeats and create dynamic interfaces 
+
         Matcher ngRepeat = TSMatcher.getMatcher(SearchPattern.NG_REPEAT_FINISHED, htmlContent);
         while (ngRepeat.find()) {
             for (TSInterface tsi : foundSuggestions.values()) {
@@ -75,10 +97,11 @@ public class TSAnalyzer {
                     if (varUsed.equals(ngRepeat.group(3))) {
                         Matcher m = TSMatcher.find(SearchPattern.TYPE_IS_ARRAY, tsi.getObjectProperties().get(varUsed));
                         if (m != null) {
-                            tsi = foundSuggestions.get(m.group(1));
+                            tsi = findInterface(varUsed, foundSuggestions);
+
                             if (tsi != null) {
-                                copyInterfaceAndAddToDynamic(tsi.getName(), ngRepeat.group(2));
-                                System.out.println("trying to create dynamic interface from: " + tsi.getName() + " to: " + ngRepeat.group(2));
+                                System.out.println("trying to create dynamic interface from: " + m.group(1) + " to: " + ngRepeat.group(2));
+                                copyInterfaceAndAddToDynamic(foundSuggestions, tsi.getName(), ngRepeat.group(2), null);
                             }
                         }
                     }
@@ -87,11 +110,29 @@ public class TSAnalyzer {
         }
     }
 
-    public Map<String, TSInterface> findInterfacesFromController(String controllerName, String htmlContent) {
+    /**
+     * creates a list of the interfaces used in the found controller.
+     *
+     * @param controllerName name of the controller to look for (all classes are
+     * stored in allController)
+     * @param htmlContent html file is needed to find variables like
+     * "ng-repeat='per in persons'" .. we add per as new interface
+     * @return
+     */
+    public Map<String, TSInterface> findInterfacesFromController(String controllerName, String htmlContent, boolean controllerAsSyntax) {
         dynamicInterfaces.clear();
         Map<String, TSInterface> foundSuggestions = new HashMap<>();
         String controllerContent = allController.get(controllerName);
         if (controllerContent != null) {
+            if (controllerAsSyntax) {
+                Matcher controllerVar = TSMatcher.find(SearchPattern.NG_CONTROLLER_AS_SYNTAX, htmlContent);
+                if (controllerVar!=null) {
+                    TSInterface tsi = new TSInterface(false, controllerVar.group(3));
+                    
+                }
+            }
+            
+            
             Matcher interfacePatternMatcher = TSMatcher.getMatcher(SearchPattern.INTERFACE_NAME, controllerContent);
             while (interfacePatternMatcher.find()) {
                 String foundInterfaceName = controllerContent.substring(interfacePatternMatcher.start() + 2, interfacePatternMatcher.end());
@@ -106,7 +147,6 @@ public class TSAnalyzer {
                         found.getObjectFunctions().putAll(extenededInterface.getObjectFunctions());
                         found.getObjectProperties().putAll(extenededInterface.getObjectProperties());
                     }
-                    // search all childs of that
                     buildChildren(found, 0);
                 }
             }
@@ -115,13 +155,18 @@ public class TSAnalyzer {
         return foundSuggestions;
     }
 
+    /**
+     * runs through all file in the current project ending with ".ts". Ignores
+     * all in "node_modules"
+     *
+     * @param projectDir
+     */
     public final void findFilesAndCreateTSInstances(File projectDir) {
         Collection<File> foundFiles2 = FileUtils.listFiles(projectDir, new SuffixFileFilter(".ts"),
                 TrueFileFilter.INSTANCE);
 
         for (File ff : foundFiles2) {
-            if (!ff.getAbsolutePath().contains("node_modules")) {
-
+            if (!ff.getAbsolutePath().contains("node_modules") && ff.exists()) {
                 createInterfaceForSingleFile(ff);
             }
         }
@@ -247,14 +292,42 @@ public class TSAnalyzer {
         if (maxLevel <= 5) {
             for (String key : parentInterface.getObjectProperties().keySet()) {
                 String interfaceName = parentInterface.getObjectProperties().get(key);
+
+                Matcher m = TSMatcher.find(SearchPattern.TYPE_IS_ARRAY, interfaceName);
+                boolean isArray = false;
+                if (m != null) {
+                    // strip array
+                    interfaceName = m.group(1);
+                    isArray = true;
+                }
+
                 if (allInterfaces.containsKey(interfaceName)) {
-                    TSInterface child = allInterfaces.get(interfaceName);
-                    System.out.println("FOUND Child: " + parentInterface.getName() + " >> " + child.getName() + " added as " + key);
-                    parentInterface.getChildren().put(key, child);
-                    buildChildren(child, maxLevel + 1);
+                    TSInterface globalInterface = allInterfaces.get(interfaceName);
+                    System.out.println(maxLevel + " --> FOUND Child: " + parentInterface.getName() + " >> " + globalInterface.getName() + " added as " + key + " isArray:" + isArray);
+                    TSInterface tsi = copyInterface(globalInterface, key);
+                    tsi.setArray(isArray);
+                    tsi.setParent(parentInterface);
+                    parentInterface.getChildren().put(key, tsi);
+
+                    buildChildren(tsi, maxLevel + 1);
                 }
             }
         }
+    }
+
+    private TSInterface findInterface(String interfaceName, Map<String, TSInterface> foundSuggestions) {
+        for (String tsiName : foundSuggestions.keySet()) {
+            if (interfaceName.equals(tsiName)) {
+                System.out.println(">>> FOUND IT!!!");
+                return foundSuggestions.get(tsiName);
+            } else {
+                System.out.println(interfaceName + " != " + tsiName);
+                if (!foundSuggestions.get(tsiName).getChildren().isEmpty()) {
+                    return findInterface(interfaceName, foundSuggestions.get(tsiName).getChildren());
+                }
+            }
+        }
+        return null;
     }
 
 }

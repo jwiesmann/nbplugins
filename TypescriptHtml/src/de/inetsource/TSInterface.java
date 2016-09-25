@@ -11,11 +11,13 @@ import java.util.Map;
 public class TSInterface {
 
     private boolean extendsInterface;
+    private boolean array;
     private Map<String, String> objectProperties;
     private Map<String, String> objectFunctions;
     private String name;
     private String extendsInterfaceName;
     private Map<String, TSInterface> children;
+    private TSInterface parent;
 
     public TSInterface(boolean extendsInterface, String name) {
         this.extendsInterface = extendsInterface;
@@ -71,6 +73,22 @@ public class TSInterface {
 
     public void setChildren(Map<String, TSInterface> children) {
         this.children = children;
+    }
+
+    public boolean isArray() {
+        return array;
+    }
+
+    public void setArray(boolean array) {
+        this.array = array;
+    }
+
+    public TSInterface getParent() {
+        return parent;
+    }
+
+    public void setParent(TSInterface parent) {
+        this.parent = parent;
     }
 
 }
